@@ -211,12 +211,6 @@
     <Content Include="Images\recarregar.png" />
     <Content Include="Images\salvar.png" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\ServicosDeOperacao\Entities\Entities.csproj">
-      <Project>{28d6a1ae-9883-4661-a029-99c45220f1c6}</Project>
-      <Name>Entities</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
