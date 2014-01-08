@@ -1,56 +1,75 @@
 ﻿using DevExpress.XtraEditors;
+using ServicoDeOperacaoClienteUsuarios;
 using Siscom.Entities;
 using SiscomSistema.Util;
+using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.ServiceModel;
 using System.Windows.Forms;
 
 namespace SiscomSistema.View
 {
     public partial class BuscaClientesForm : Form
     {
+
+        private IService vService;
         public BuscaClientesForm()
         {
-            InitializeComponent();
+            vService = ConnectionHelper.iniciaConexao();
+            InitializeComponent();            
             getAll();
         }
-
         public void getAll()
         {
-            var session = ConnectionHelper.OpenSession();
-            bindingSource.DataSource = (List<Clientes>) session.CreateCriteria(typeof(Clientes)).SetMaxResults(100).List<Clientes>();
+            try
+            {
+                bindingSource.DataSource = (List<Clientes>) vService.retornaTodosCliFor();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                Environment.Exit(0);
+            }
         }
 
         void getBy(string value)
         {
-            var session = ConnectionHelper.OpenSession();
             string tipo_documento = cbTipoDocumento.SelectedItem.ToString();
             if ("NOME".Equals(tipo_documento) && value.Trim().Length > 1)
             {
-                bindingSource.DataSource = session.QueryOver<Clientes>().WhereRestrictionOn(x => x.nome).IsInsensitiveLike("%"+value+"%").List();
+                bindingSource.DataSource = (List<Clientes>)vService.retornaCliForPorNome(value);
             }
             else if (!"NOME".Equals(tipo_documento) && value.Trim().Length > 5)
             {
-                bindingSource.DataSource = session.QueryOver<Clientes>().Where(x => x.documento == value).List();
+                bindingSource.DataSource = (List<Clientes>)vService.retornaCliForPorDocumento(value);
             }
         }
 
         private void gridControl_Click(object sender, System.EventArgs e)
         {
-            Clientes c = (Clientes) bindingSource.Current;
-            ClientesForm cf = new ClientesForm(c, this);
-            cf.ShowDialog();            
+            showClientesForm((Clientes) bindingSource.Current);
         }
 
         private void btnNovo_Click(object sender, System.EventArgs e)
         {
-            ClientesForm cf = new ClientesForm(null, this);            
-            cf.ShowDialog();
+            showClientesForm(null);
         }
 
         private void btnPesquisar_Click(object sender, System.EventArgs e)
         {
             getBy(tfDocumento.Text);
+        }
+
+        private DialogResult showClientesForm(Clientes c)
+        {
+            ClientesForm cf = new ClientesForm(c);
+            DialogResult rs = cf.ShowDialog();
+            if (rs == DialogResult.OK)
+            {
+                this.getAll();
+            }
+            return rs;
         }
 
         private void cb_Tipo_Documento_SelectedIndexChanged(object sender, System.EventArgs e)
@@ -59,7 +78,7 @@ namespace SiscomSistema.View
             if ("NOME".Equals(tipo_documento))
             {
                 this.tfDocumento.Text = null;
-                this.tfDocumento.Properties.Mask.EditMask = "";
+                this.tfDocumento.Properties.Mask.EditMask = null;
                 this.tfDocumento.Select();
             }else if ("CNPJ".Equals(tipo_documento))
             {
@@ -81,7 +100,6 @@ namespace SiscomSistema.View
 
         private void btnSair_Click(object sender, System.EventArgs e)
         {
-            ConnectionHelper.CloseSession();
             this.Dispose();
         }
     }

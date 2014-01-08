@@ -1,16 +1,8 @@
-﻿using DevExpress.XtraEditors;
-using DevExpress.XtraEditors.DXErrorProvider;
+﻿using DevExpress.XtraEditors.DXErrorProvider;
 using SecureApp;
 using Siscom.Entities;
 using SiscomSistema.Util;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace SiscomSistema.View.Funcionario
@@ -52,7 +44,7 @@ namespace SiscomSistema.View.Funcionario
         {
             setValidationsSenha();
             if(dxValidationProvider.Validate()){
-                DTICrypto crypto = new DTICrypto();
+                /*DTICrypto crypto = new DTICrypto();
                 funcionario = (Funcionarios) bindingSource.Current;
                 var session = ConnectionHelper.OpenSession();
                 using (var transaction = session.BeginTransaction())
@@ -66,7 +58,7 @@ namespace SiscomSistema.View.Funcionario
                     transaction.Commit();
                     bff.getAll();
                     Dispose();
-                }
+                }*/
             }
         }
 

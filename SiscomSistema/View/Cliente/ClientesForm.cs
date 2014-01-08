@@ -1,64 +1,63 @@
-﻿
-using DevExpress.XtraEditors;
+﻿using DevExpress.XtraEditors;
 using DevExpress.XtraEditors.Controls;
 using DevExpress.XtraEditors.DXErrorProvider;
-using NHibernate.Criterion;
-using NHibernate.Mapping;
+using ServicoDeOperacaoClienteUsuarios;
 using Siscom.Entities;
 using SiscomSistema.Util;
 using System;
 using System.Collections.Generic;
+using System.ServiceModel;
 using System.Windows.Forms;
-
 namespace SiscomSistema.View
 {
     public partial class ClientesForm : DevExpress.XtraEditors.XtraForm
     {
-        private BuscaClientesForm bcf;
         private CustomValidationRuleCPF customValidationCPF;
         private CustomValidationRuleCNPJ customValidationCNPJ;
         private CustomValidationRuleIE customValidationIE;
-        private string status = "save";
-        public ClientesForm(Clientes cliente, BuscaClientesForm _bcf)
+        private IService vService;
+        Clientes _c = null;
+        public ClientesForm(Clientes cliente)
         {
             InitializeComponent();
+            btnSalvar.DialogResult = DialogResult.OK;
+            vService = ConnectionHelper.iniciaConexao();
             loadCidades();
-            bcf = _bcf;
             if (cliente == null)
             {
-                cliente = new Clientes();   
+                cliente = new Clientes();
+                cbBairro.Enabled = false;
+                cbEndereco.Enabled = false;
             }
             else
-            {                              
-                loadBairrosAndEnderecos(cliente.cidade.ToString());
+            {                
+                cbCidade.EditValue = cliente.id_cidades;
+                loadBairrosAndEnderecos(Convert.ToInt64(cbCidade.EditValue));
                 tfDocumento.Properties.ReadOnly = true;
-                status = "update";
                 btnInativar.Enabled = true;
+                cbBairro.EditValue = cliente.id_bairros;
+                cbEndereco.EditValue = cliente.id_enderecos;
             }
-
+            _c = cliente;
             bindingSource.Add(cliente);
 
             foreach (Control c in panelControl.Controls)
             {
                 dxValidationProvider.SetIconAlignment(c, ErrorIconAlignment.MiddleRight);
             }
-        }
+        }       
 
         private void btnSalvar_Click(object sender, System.EventArgs e)
         {
             if(dxValidationProvider.Validate()){
-                var session = ConnectionHelper.OpenSession();
-                using (var transaction = session.BeginTransaction())
-                {
-                    if("save".Equals(status) && uniqDocumento(tfDocumento.Text) > 1){
-                        XtraMessageBox.Show(l_documento.Text + " " + tfDocumento.Text+" já esta cadastrado para outro cliente, verifique.");
-                        return;
-                    }
-                    session.SaveOrUpdate(bindingSource.Current);
-                    transaction.Commit();
-                    bcf.getAll();
-                    Dispose();
+                if(Utils.textFieldIsEmpty(tfDocumento) == false && uniqDocumento(tfDocumento.Text) >= 1){
+                    XtraMessageBox.Show(String.Format("{0} {1} já esta cadastrado para outro cliente, verifique.", l_documento.Text, tfDocumento.Text));
+                     return;
                 }
+                Clientes c = (Clientes) bindingSource.Current;
+                c.id_cidades = Convert.ToInt64(cbCidade.EditValue);
+                //transaction.Commit();                
+                Dispose();
             }
         }
 
@@ -132,30 +131,13 @@ namespace SiscomSistema.View
             }
         }
 
-        public class CustomValidationRuleUniqDocumento : ValidationRule
-        {
-            public override bool Validate(Control control, object value)
-            {
-                if (uniqDocumento(value.ToString()) == 0)
-                {
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-        }
-
         private void comboBoxEdit1_SelectedIndexChanged(object sender, EventArgs e)
         {
             string value = cbTipoDocumento.SelectedItem.ToString();
             if("CPF".Equals(value)){
                 this.tfDocumento.Properties.Mask.EditMask = "000.000.000-00";
                 customValidationCPF = null;
-                customValidationCPF = new CustomValidationRuleCPF();
-                customValidationCPF.ErrorText = "Preencha com um CPF válido";
-                customValidationCPF.ErrorType = ErrorType.Critical;
+                customValidationCPF = new CustomValidationRuleCPF() { ErrorText = "Preencha com um CPF válido", ErrorType = ErrorType.Critical };
                 dxValidationProvider.SetValidationRule(tfDocumento, customValidationCPF);
 
                 customValidationIE = null;
@@ -170,16 +152,12 @@ namespace SiscomSistema.View
             {
                 this.tfDocumento.Properties.Mask.EditMask = "00.000.000/0000-00";
                 customValidationCNPJ = null;
-                customValidationCNPJ = new CustomValidationRuleCNPJ();
-                customValidationCNPJ.ErrorText = "Preencha com um CNPJ válido";
-                customValidationCNPJ.ErrorType = ErrorType.Critical;
+                customValidationCNPJ = new CustomValidationRuleCNPJ() { ErrorText = "Preencha com um CNPJ válido", ErrorType = ErrorType.Critical };
                 dxValidationProvider.SetValidationRule(tfDocumento, customValidationCNPJ);
 
                 customValidationIE = null;
                 dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
-                customValidationIE = new CustomValidationRuleIE(this);
-                customValidationIE.ErrorText = "Preencha uma Incrição Estadual Válida";
-                customValidationIE.ErrorType = ErrorType.Critical;
+                customValidationIE = new CustomValidationRuleIE(this) { ErrorText = "Preencha uma Incrição Estadual Válida", ErrorType = ErrorType.Critical };
                 dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
 
                 ckIsento.Enabled = true;
@@ -208,9 +186,7 @@ namespace SiscomSistema.View
                 tfIE.Text = null;
                 tfIE.Properties.ReadOnly = false;
 
-                customValidationIE = new CustomValidationRuleIE(this);
-                customValidationIE.ErrorText = "Preencha uma Incrição Estadual Válida";
-                customValidationIE.ErrorType = ErrorType.Critical;
+                customValidationIE = new CustomValidationRuleIE(this) { ErrorText = "Preencha uma Incrição Estadual Válida", ErrorType = ErrorType.Critical };
                 dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
             }
         }
@@ -219,18 +195,8 @@ namespace SiscomSistema.View
         {
             try
             {
-                List<Cidades> lista_cidades = new List<Cidades>();                
-                ComboBoxItemCollection col = this.cbCidade.Properties.Items;
-
-                col.BeginUpdate();
-                col.Clear();
-                var session = ConnectionHelper.OpenSession();
-                lista_cidades = (List<Cidades>)session.CreateCriteria(typeof(Cidades)).AddOrder(Order.Asc("cidade")).List<Cidades>();
-                foreach (Cidades c in lista_cidades)
-                {
-                    col.Add(c);
-                }
-                col.EndUpdate();
+                List<Cidades> lista_cidades = vService.recuperarTodasAsCidades();
+                bindingSourceCidade.DataSource = lista_cidades;
             }
             catch (Exception ex)
             {
@@ -238,34 +204,19 @@ namespace SiscomSistema.View
             }
         }
 
-        private void loadBairrosAndEnderecos(string name_cidade)
+        private void loadBairrosAndEnderecos(long id_cidade)
         {
             try
             {
-            var session = ConnectionHelper.OpenSession();
-            Cidades c = session.QueryOver<Cidades>().Where(x => x.cidade == name_cidade).SingleOrDefault();
-            tfEstado.Text = c.uf; 
-            ComboBoxItemCollection cb_bairro = this.cbBairro.Properties.Items;
-            ComboBoxItemCollection cb_endereco = this.cbEndereco.Properties.Items;
-            IList<Bairros> lista_bairros = c.bairros;
-            IList<Enderecos> lista_enderecos = c.enderecos;
+            Cidades cidade = vService.recuperarCidadePorId(id_cidade);
+            tfEstado.Text = cidade.uf;
 
-            cb_bairro.BeginUpdate();
-            cb_bairro.Clear();
+            List<Bairros> lista_bairros = vService.recuperarBairroPorIdCidade(id_cidade);            
+            bindingSourceBairros.DataSource = lista_bairros;
 
-            cb_endereco.BeginUpdate();
-            cb_endereco.Clear();
-            foreach (Bairros b in lista_bairros)
-                {
-                    cb_bairro.Add(b);
-                }
-                cb_bairro.EndUpdate();
+            List<Enderecos> lista_enderecos = vService.recuperaEnderecosPorIdCidade(id_cidade);
+            bindingSourceEnderecos.DataSource = lista_enderecos;
 
-            foreach (Enderecos e in lista_enderecos)
-                {
-                    cb_endereco.Add(e);
-                }
-                cb_endereco.EndUpdate();
             }
             catch (Exception ex)
             {
@@ -275,21 +226,20 @@ namespace SiscomSistema.View
 
         private void loadCep()
         {
-            if (cbEndereco.SelectedItem != null)
+            string _endereco = cbEndereco.Text;
+            if (_endereco != null)
             {
-                string endereco_ = cbEndereco.SelectedItem.ToString();
-                var session = ConnectionHelper.OpenSession();
-                Enderecos c = session.QueryOver<Enderecos>().Where(x=>x.endereco == endereco_).SingleOrDefault();
-                tfCep.Text = c.cep;
+                Enderecos c = vService.recuperaEnderecoPorNome(_endereco);
+                //tfCep.Text = c.cep;
             }
         }
 
         private void cbCidade_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if(cbCidade.SelectedIndex > -1){
-                loadBairrosAndEnderecos(cbCidade.SelectedItem.ToString());
-            }
-
+            long a = Convert.ToInt64(cbCidade.EditValue);
+            loadBairrosAndEnderecos(a);
+            cbBairro.Enabled = true;
+            cbEndereco.Enabled = true;
         }
 
         private void cbEndereco_SelectedIndexChanged(object sender, EventArgs e)
@@ -297,26 +247,25 @@ namespace SiscomSistema.View
             loadCep();
         }
 
-        private static int uniqDocumento(string value)
+        private int uniqDocumento(string value)
         {
-            var session = ConnectionHelper.OpenSession();
-            return session.QueryOver<Clientes>().Where(x => x.documento == value).RowCount();
+           return vService.countClassClientes(value, "documento");
         }
 
         private int uniqRG(string value)
         {
-            var session = ConnectionHelper.OpenSession();
-            return session.QueryOver<Clientes>().Where(x => x.ie == value).RowCount();
+            return vService.countClassClientes(value, "ie");
         }
 
         private void btnSair_Click(object sender, EventArgs e)
-        {
-            ConnectionHelper.CloseSession();
+        {            
             this.Dispose();
         }
 
         private void btnInativar_Click(object sender, EventArgs e)
         {
+            cbBairro.EditValue = _c.id_bairros;
+            cbEndereco.EditValue = _c.id_enderecos;
         }
     }
 }

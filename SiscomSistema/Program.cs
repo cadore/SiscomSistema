@@ -24,9 +24,7 @@ namespace SiscomSistema
             DevExpress.UserSkins.BonusSkins.Register();
             UserLookAndFeel.Default.SetSkinStyle("Office 2013");
 
-            log4net.Config.XmlConfigurator.Configure();
-
-            Application.Run(new BuscaFuncionariosForm());            
+            Application.Run(new BuscaClientesForm());
         }
     }
 }
