@@ -16,11 +16,10 @@ namespace SiscomSistema.View
         private CustomValidationRuleCNPJ customValidationCNPJ;
         private CustomValidationRuleIE customValidationIE;
         private IService vService;
-        Clientes _c = null;
+        //Clientes _cliente;
         public ClientesForm(Clientes cliente)
         {
             InitializeComponent();
-            btnSalvar.DialogResult = DialogResult.OK;
             vService = ConnectionHelper.iniciaConexao();
             loadCidades();
             if (cliente == null)
@@ -28,20 +27,24 @@ namespace SiscomSistema.View
                 cliente = new Clientes();
                 cbBairro.Enabled = false;
                 cbEndereco.Enabled = false;
+                btnEditar.Enabled = false;
             }
             else
             {                
                 cbCidade.EditValue = cliente.id_cidades;
                 loadBairrosAndEnderecos(Convert.ToInt64(cbCidade.EditValue));
                 tfDocumento.Properties.ReadOnly = true;
-                btnInativar.Enabled = true;
+                tfIE.Properties.ReadOnly = true;
+                btnEditar.Enabled = true;
                 cbBairro.EditValue = cliente.id_bairros;
                 cbEndereco.EditValue = cliente.id_enderecos;
+                btnSalvar.Enabled = false;
+                pcCampos.Enabled = false;
             }
-            _c = cliente;
+            //_cliente = cliente;
             bindingSource.Add(cliente);
 
-            foreach (Control c in panelControl.Controls)
+            foreach (Control c in pcCampos.Controls)
             {
                 dxValidationProvider.SetIconAlignment(c, ErrorIconAlignment.MiddleRight);
             }
@@ -49,21 +52,43 @@ namespace SiscomSistema.View
 
         private void btnSalvar_Click(object sender, System.EventArgs e)
         {
-            if(dxValidationProvider.Validate()){
-                if(Utils.textFieldIsEmpty(tfDocumento) == false && uniqDocumento(tfDocumento.Text) >= 1){
-                    XtraMessageBox.Show(String.Format("{0} {1} já esta cadastrado para outro cliente, verifique.", l_documento.Text, tfDocumento.Text));
-                     return;
+            bool id_cod = Utils.textFieldIsEmpty(tfDocumento);
+            try
+            {
+                if (dxValidationProvider.Validate())
+                {
+                    if (id_cod == false && uniqDocumento(tfDocumento.Text) >= 1)
+                    {
+                        XtraMessageBox.Show(String.Format("{0} {1} já esta cadastrado para outro cliente, verifique.", l_documento.Text, tfDocumento.Text));
+                        return;
+                    }
+                    if (id_cod == false && ckIsento.Checked == false && uniqIe(tfId.Text) >= 1)
+                    {
+                        XtraMessageBox.Show(String.Format("{0} {1} já esta cadastrado para outro cliente, verifique.", l_ie.Text, tfIE.Text));
+                        return;
+                    }
+
+                    Clientes c = Clientes.ToClientes(bindingSource.Current);
+                    c.id_cidades = Convert.ToInt64(cbCidade.EditValue);
+                    c.id_bairros = Convert.ToInt64(cbBairro.EditValue);
+                    c.id_enderecos = Convert.ToInt64(cbEndereco.EditValue);
+
+                    //if (c != _cliente)
+                   // {
+                        int cod = vService.salvar(c);
+                        tfId.Text = cod.ToString();
+                        btnEditar.Enabled = true;
+                        pcCampos.Enabled = false;
+                    //}
                 }
-                Clientes c = (Clientes) bindingSource.Current;
-                c.id_cidades = Convert.ToInt64(cbCidade.EditValue);
-                //transaction.Commit();                
-                Dispose();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(String.Format("Ocorreu um erro na solicitação, por favor tente novamente! \n{0}", ex.Message));
+                return;
             }
         }
 
-        private void simpleButton2_Click(object sender, EventArgs e)
-        {
-        }
         public class CustomValidationRuleCPF : ValidationRule
         {
             public override bool Validate(Control control, object value)
@@ -131,46 +156,6 @@ namespace SiscomSistema.View
             }
         }
 
-        private void comboBoxEdit1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            string value = cbTipoDocumento.SelectedItem.ToString();
-            if("CPF".Equals(value)){
-                this.tfDocumento.Properties.Mask.EditMask = "000.000.000-00";
-                customValidationCPF = null;
-                customValidationCPF = new CustomValidationRuleCPF() { ErrorText = "Preencha com um CPF válido", ErrorType = ErrorType.Critical };
-                dxValidationProvider.SetValidationRule(tfDocumento, customValidationCPF);
-
-                customValidationIE = null;
-                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
-                ckIsento.Enabled = false;
-                ckIsento.Checked = false;
-
-                l_documento.Text = "CPF:";
-                l_ie.Text = "RG:";                                
-            }
-            else if ("CNPJ".Equals(value))
-            {
-                this.tfDocumento.Properties.Mask.EditMask = "00.000.000/0000-00";
-                customValidationCNPJ = null;
-                customValidationCNPJ = new CustomValidationRuleCNPJ() { ErrorText = "Preencha com um CNPJ válido", ErrorType = ErrorType.Critical };
-                dxValidationProvider.SetValidationRule(tfDocumento, customValidationCNPJ);
-
-                customValidationIE = null;
-                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
-                customValidationIE = new CustomValidationRuleIE(this) { ErrorText = "Preencha uma Incrição Estadual Válida", ErrorType = ErrorType.Critical };
-                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
-
-                ckIsento.Enabled = true;
-
-                l_documento.Text = "CNPJ:";
-                l_ie.Text = "I.E.:";
-            }
-            else
-            {
-                return;
-            }
-        }
-
         private void ckIsento_CheckedChanged(object sender, EventArgs e)
         {
             if(ckIsento.Checked){
@@ -226,20 +211,17 @@ namespace SiscomSistema.View
 
         private void loadCep()
         {
-            string _endereco = cbEndereco.Text;
-            if (_endereco != null)
-            {
-                Enderecos c = vService.recuperaEnderecoPorNome(_endereco);
-                //tfCep.Text = c.cep;
-            }
+            long id_endereco = Convert.ToInt64(cbEndereco.EditValue);
+            Enderecos c = vService.recuperarEnderecoPorId(id_endereco);
+            tfCep.Text = c.cep;            
         }
 
         private void cbCidade_SelectedIndexChanged(object sender, EventArgs e)
         {
-            long a = Convert.ToInt64(cbCidade.EditValue);
-            loadBairrosAndEnderecos(a);
+            long a = Convert.ToInt64(cbCidade.EditValue);            
             cbBairro.Enabled = true;
             cbEndereco.Enabled = true;
+            loadBairrosAndEnderecos(a);
         }
 
         private void cbEndereco_SelectedIndexChanged(object sender, EventArgs e)
@@ -252,7 +234,7 @@ namespace SiscomSistema.View
            return vService.countClassClientes(value, "documento");
         }
 
-        private int uniqRG(string value)
+        private int uniqIe(string value)
         {
             return vService.countClassClientes(value, "ie");
         }
@@ -262,10 +244,51 @@ namespace SiscomSistema.View
             this.Dispose();
         }
 
-        private void btnInativar_Click(object sender, EventArgs e)
+        private void btnEditar_Click(object sender, EventArgs e)
         {
-            cbBairro.EditValue = _c.id_bairros;
-            cbEndereco.EditValue = _c.id_enderecos;
+            btnSalvar.Enabled = true;
+            pcCampos.Enabled = true;
+        }
+
+        private void cbTipoDocumento_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string value = cbTipoDocumento.SelectedItem.ToString();
+            if ("CPF".Equals(value))
+            {
+                this.tfDocumento.Properties.Mask.EditMask = "000.000.000-00";
+                customValidationCPF = null;
+                customValidationCPF = new CustomValidationRuleCPF() { ErrorText = "Preencha com um CPF válido", ErrorType = ErrorType.Critical };
+                dxValidationProvider.SetValidationRule(tfDocumento, customValidationCPF);
+
+                customValidationIE = null;
+                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
+                ckIsento.Enabled = false;
+                ckIsento.Checked = false;
+
+                l_documento.Text = "CPF:";
+                l_ie.Text = "RG:";
+            }
+            else if ("CNPJ".Equals(value))
+            {
+                this.tfDocumento.Properties.Mask.EditMask = "00.000.000/0000-00";
+                customValidationCNPJ = null;
+                customValidationCNPJ = new CustomValidationRuleCNPJ() { ErrorText = "Preencha com um CNPJ válido", ErrorType = ErrorType.Critical };
+                dxValidationProvider.SetValidationRule(tfDocumento, customValidationCNPJ);
+
+                customValidationIE = null;
+                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
+                customValidationIE = new CustomValidationRuleIE(this) { ErrorText = "Preencha uma Incrição Estadual Válida", ErrorType = ErrorType.Critical };
+                dxValidationProvider.SetValidationRule(tfIE, customValidationIE);
+
+                ckIsento.Enabled = true;
+
+                l_documento.Text = "CNPJ:";
+                l_ie.Text = "I.E.:";
+            }
+            else
+            {
+                return;
+            }
         }
     }
 }

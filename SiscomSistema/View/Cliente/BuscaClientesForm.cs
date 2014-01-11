@@ -48,7 +48,7 @@ namespace SiscomSistema.View
 
         private void gridControl_Click(object sender, System.EventArgs e)
         {
-            showClientesForm((Clientes) bindingSource.Current);
+            showClientesForm(Clientes.ToClientes(bindingSource.Current));
         }
 
         private void btnNovo_Click(object sender, System.EventArgs e)
